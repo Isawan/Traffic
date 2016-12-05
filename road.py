@@ -1,6 +1,8 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import time
+from roadtype.circle import CircularRoad as Road
+import measurements
 
 L = 100
 vmax = 5
@@ -9,54 +11,24 @@ prob_car = 0.2
 # Probability of slowing down
 prob_slow = 0.1
 
-EMPTY = 0
+def populate_road(road,spacing,vel):
+    for i in range(0,road.length,spacing):
+        road.insert_car(i,vel)
 
-class Road:
-    def __init__(self,length):
-        self.cars = np.zeros(L,dtype=np.int32)
-        self.vel = np.zeros(L,dtype=np.int32)
-        self.length = length
+def step(road,vmax=5,measurements=[]):
+    try:
+        dist = road.distance#distance(road)
+    except Exception as e:
+        #print(e)
+        assert(str(e)=='Empty Road')
+        newroad = road.__class__(road.length)
+        return newroad
 
-    def insert_car(self,pos,vel):
-        if self.cars[pos] != EMPTY:
-            raise Exception()
-        self.cars[pos] = 1
-        self.vel[pos] = vel
-
-    def __str__(self):
-        np.set_printoptions(linewidth=L*2)
-        a = str(self.vel)
-        np.set_printoptions()
-        return a
-
-def populate_road(road):
-    for i,r in enumerate(np.random.binomial(2,prob_car,L)):
-        if r != 1: continue
-        road.insert_car(i,3)
-
-# Returns an array containing distance to next car
-def distance(road):
-    carloc = np.nonzero(road.cars)[0]
-    enddist = carloc[0]+road.length-carloc[-1]
-    #print(carloc[0])
-    #print(carloc[-1])
-    #print(road.length )
-    #print(enddist)
-    return np.append(np.diff(carloc),
-            enddist)
-    
-
-def step(road):
-    dist = distance(road)
-    carloc = np.nonzero(road.cars)[0]
-    carvel = road.vel[carloc]
+    carloc = road.car_location
+    carvel = road.car_vel
     
     # Acceleration
     p = np.where(np.logical_and(carvel<vmax, dist>carvel))
-    #print('carvel\n',carvel)
-    #print('carloc\n',carloc)
-    #print('dist\n',dist)
-    #print(p)
     carvel[p] += 1
 
     # Deceleration
@@ -67,15 +39,17 @@ def step(road):
     r = np.random.binomial(1,prob_slow,len(p))
     carvel[p] -= r
     
-
     # Car motion
     carloc += carvel
 
+    # Take measurements
+    for m in measurements:
+        m.measure(road,carloc,carvel)
+
     # Put car into road
-    newroad = Road(road.length)
-    newroad.cars[carloc%road.length] = 1
-    newroad.vel[carloc%road.length] = carvel
-    
+    newroad = road.__class__(road.length)
+
+    newroad.insert_cars(carloc,carvel) 
     return newroad
 
 if __name__ == '__main__':
